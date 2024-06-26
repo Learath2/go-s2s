@@ -61,6 +61,14 @@ type SimpleToDiffCase struct {
 	ComPlex complex64
 }
 
+type EmbeddedTo struct {
+	SimpleTo
+}
+
+type EmbeddedFrom struct {
+	SimpleFrom
+}
+
 var exampleFrom = SimpleFrom{true, "test", -10, 20, 3.14, 5 + 12i}
 var expectedTo = SimpleTo{true, "test", -10, 20, 3.14, 5 + 12i}
 
@@ -126,6 +134,22 @@ type TestCaseEx struct {
 	Cfg *MapperConfig
 }
 
+func TestEmbeds(t *testing.T) {
+	t.Run("SimpleFrom to EmbeddedTo", func(t *testing.T) {
+		var to EmbeddedTo
+		err := MapStruct(&exampleFrom, &to)
+		assert.Nil(t, err)
+		assert.Equal(t, expectedTo, to.SimpleTo)
+	})
+
+	t.Run("EmbeddedFrom to SimpleTo", func(t *testing.T) {
+		var to SimpleTo
+		err := MapStruct(&EmbeddedFrom{exampleFrom}, &to)
+		assert.Nil(t, err)
+		assert.Equal(t, expectedTo, to)
+	})
+}
+
 func TestEx(t *testing.T) {
 	//defCfg := DefaultConfig
 	const testStr = "foo"
@@ -183,9 +207,9 @@ func TestEx(t *testing.T) {
 				expectedTo.UInt, expectedTo.Float, expectedTo.Complex}},
 			&MapperConfig{
 				ValueMapper: func(v reflect.Value, t reflect.Type) any {
-					switch t.Kind(){
+					switch t.Kind() {
 					// Test non-nil
-					case reflect.String: 
+					case reflect.String:
 						rvh := testStr
 						return &rvh
 					// Test nil to zero convenience aswell
@@ -207,8 +231,8 @@ func TestEx(t *testing.T) {
 			nil},
 			&MapperConfig{
 				ValueMapper: func(v reflect.Value, t reflect.Type) any {
-					switch t.Kind(){
-					// Test nil to zero convenience 
+					switch t.Kind() {
+					// Test nil to zero convenience
 					case reflect.Bool:
 						return (*bool)(nil)
 					default:
@@ -227,7 +251,7 @@ func TestEx(t *testing.T) {
 			nil},
 			&MapperConfig{
 				ValueMapper: func(v reflect.Value, t reflect.Type) any {
-					switch t.Kind(){
+					switch t.Kind() {
 					//Test invalid conversion int -> string
 					case reflect.Int:
 						return ""
@@ -248,7 +272,7 @@ func TestEx(t *testing.T) {
 				expectedTo.UInt, expectedTo.Float, expectedTo.Complex}},
 			&MapperConfig{
 				ValueMapper: func(v reflect.Value, t reflect.Type) any {
-					switch t.Kind(){
+					switch t.Kind() {
 					//Test invalid conversion int -> string
 					case reflect.Int:
 						return ""
@@ -262,7 +286,6 @@ func TestEx(t *testing.T) {
 			},
 		},
 	}
-
 
 	runFunc := func(t *testing.T, c *TestCaseEx) {
 		err := MapStructEx(*c.Cfg, c.In, c.Out)
@@ -335,10 +358,10 @@ func TestIncludedMappers(t *testing.T) {
 			log = append(log, "b")
 			return v.Interface()
 		}
-		
+
 		cfg := DefaultConfig
 		cfg.ValueMapper = CompositeMapper(aMapper, bMapper)
-		
+
 		err := MapStructEx(cfg, &exampleFrom, &SimpleTo{})
 		assert.Nil(t, err)
 

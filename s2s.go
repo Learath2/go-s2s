@@ -22,20 +22,20 @@ type ValueMapper = func(value reflect.Value, targetType reflect.Type) interface{
 type MapperConfig struct {
 	// This function if set will be called every time a field name is used
 	// allowing you to map handle conversions like CamelCase -> snake_case
-	NameMapper           NameMapper
+	NameMapper NameMapper
 
-	// This function if set will be called when mapping an input value 
+	// This function if set will be called when mapping an input value
 	// to an output fields type.
 	// For convenience you are allowed to return both a value directly or
 	// behind a pointer.
 	// Also if `MapNilToZeroImplicit` is set (default), returned typed nil
 	// pointers will be implicitly mapped to the zero value if the output
 	// field is not of pointer type
-	ValueMapper          ValueMapper
+	ValueMapper ValueMapper
 
 	// If set (default) the mapper will not error on fields that can't be
 	// mapped to an output field
-	SkipMissingField     bool
+	SkipMissingField bool
 
 	// If set (default) the mapper will not error if a conversion from input
 	// field type to output field type fails
@@ -89,19 +89,29 @@ func mapStruct(cfg MapperConfig, input interface{}, output interface{}) error {
 		return ErrArgumentsInvalid
 	}
 
-	fieldMap := map[string]int{}
-	for i := 0; i < oTyp.NumField(); i++ {
-		f := oTyp.Field(i)
+	fieldMap := map[string][]int{}
+	oVisibleFields := reflect.VisibleFields(oTyp)
+	for _, f := range oVisibleFields {
+		// Setting unexported fields is a no-no
+		if !f.IsExported() {
+			continue
+		}
+
 		mappedName := f.Name
 		if cfg.NameMapper != nil {
 			mappedName = cfg.NameMapper(mappedName)
 		}
-		fieldMap[mappedName] = i
+		fieldMap[mappedName] = f.Index
 	}
 
-	for i := 0; i < iVal.NumField(); i++ {
-		iField := iTyp.Field(i)
-		iFieldVal := iVal.Field(i)
+	iVisibleFields := reflect.VisibleFields(iTyp)
+	for _, iField := range iVisibleFields {
+		// Reading unexported fields is also a no-no
+		if !iField.IsExported() {
+			continue
+		}
+
+		iFieldVal := iVal.FieldByIndex(iField.Index)
 		mappedName := iField.Name
 		if cfg.NameMapper != nil {
 			mappedName = cfg.NameMapper(mappedName)
@@ -115,8 +125,8 @@ func mapStruct(cfg MapperConfig, input interface{}, output interface{}) error {
 			continue
 		}
 
-		oField := oTyp.Field(oIdx)
-		oFieldVal := oVal.Field(oIdx)
+		oField := oTyp.FieldByIndex(oIdx)
+		oFieldVal := oVal.FieldByIndex(oIdx)
 
 		mappedInput := iFieldVal.Interface()
 		if cfg.ValueMapper != nil {
@@ -130,7 +140,7 @@ func mapStruct(cfg MapperConfig, input interface{}, output interface{}) error {
 				//Convenience: Allow ValueMapper to return either oField.Type or *oField.Type
 				if mappedInputVal.IsNil() {
 					if !cfg.MapNilToZeroImplicit {
-						return fmt.Errorf("%w: Can't map <nil>(%s) to (%s)", ErrInvalidConversion, mappedInputVal.Type().Name(), oFieldVal.Type()) 
+						return fmt.Errorf("%w: Can't map <nil>(%s) to (%s)", ErrInvalidConversion, mappedInputVal.Type().Name(), oFieldVal.Type())
 					}
 					mappedInputVal = reflect.Zero(oFieldVal.Type())
 				} else {
